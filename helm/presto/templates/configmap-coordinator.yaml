@@ -1,0 +1,64 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "presto.coordinator" . }}
+  labels:
+    app: {{ template "presto.name" . }}
+    chart: {{ template "presto.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+    component: coordinator
+data:
+  node.properties: |
+    node.environment={{ .Values.server.node.environment }}
+    node.id=4f81a5ea-3025-4181-b94d-9ebc877adbc6
+    node.data-dir={{ .Values.server.node.dataDir }}
+    plugin.dir={{ .Values.server.node.pluginDir }}
+    catalog.config-dir=/usr/lib/presto/catalog
+
+  jvm.config: |
+    -server
+    -Xmx{{ .Values.server.jvm.maxHeapSize }}
+    -XX:+{{ .Values.server.jvm.gcMethod.type }}
+    -XX:G1HeapRegionSize={{ .Values.server.jvm.gcMethod.g1.heapRegionSize }}
+    -XX:+UseGCOverheadLimit
+    -XX:+ExplicitGCInvokesConcurrent
+    -XX:+HeapDumpOnOutOfMemoryError
+    -XX:+ExitOnOutOfMemoryError
+    -Djdk.attach.allowAttachSelf=true
+    -Dconfig={{ .Values.server.config.path }}
+
+  config.properties: |
+    coordinator=true
+{{- if gt (int .Values.server.workers) 0 }}
+    node-scheduler.include-coordinator=false
+{{- else }}
+    node-scheduler.include-coordinator=true
+{{- end }}
+    http-server.http.port={{ .Values.server.config.http.port }}
+    query.max-memory={{ .Values.server.config.query.maxMemory }}
+    query.max-memory-per-node={{ .Values.server.config.query.maxMemoryPerNode }}
+    discovery-server.enabled=true
+    discovery.uri=http://localhost:{{ .Values.server.config.http.port }}
+
+  log.properties: |
+    io.prestosql={{ .Values.server.log.presto.level }}
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: presto-catalog
+  labels:
+    app: {{ template "presto.name" . }}
+    chart: {{ template "presto.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+    component: coordinator
+data:
+  kudu.properties: |
+    connector.name=kudu
+    kudu.client.master-addresses=kudu-master-0.kudu-masters.default.svc.cluster.local:7051,kudu-master-1.kudu-masters.default.svc.cluster.local:7051,kudu-master-2.kudu-masters.default.svc.cluster.local:7051
+    kudu.client.default-admin-operation-timeout=300s
+    kudu.client.default-operation-timeout=300s
+    kudu.client.default-socket-read-timeout=100s
